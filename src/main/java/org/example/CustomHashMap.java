@@ -7,10 +7,16 @@ public class CustomHashMap<K, V> {
     private int size = 0;
     private int capacity = 16;
 
+    @SuppressWarnings("unchecked")
+    public CustomHashMap() {
+        this.table = (Node<K, V>[]) new Node[capacity];
+    }
+
     private static class Node<K, V> implements Map.Entry<K, V> {
-        final K key;
-        V value;
-        final Integer hash;
+        private final K key;
+        private V value;
+        private final Integer hash;
+
 
         Node(Integer hash, K key, V value) {
             this.hash = hash;
@@ -30,103 +36,104 @@ public class CustomHashMap<K, V> {
             return hash;
         }
 
-
         public V setValue(V value) {
             this.value = value;
             return value;
         }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            Node<K, V> node = (Node<K, V>) obj;
+            return key == node.key &&
+                    Objects.equals(value, node.value) &&
+                    Objects.equals(hash, node.hash);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash((Object) hash, (Object) key, (Object) value);
+        }
+
     }
 
+    private Node<K, V> getNode(K key) {
+        if (table == null) return null;
+        Integer hash;
+        if (key != null) hash = key.hashCode();
+        else hash = null;
 
-    private Node<K, V> getNode(Object key) {
-        if (table == null) {
-            return null;
-        }
-        for (Node<K, V> kvNode : table) {
-            if (kvNode != null) {
-                if (key != null && kvNode.getHash() != null) {
-                    if (kvNode.getHash() == key.hashCode()) return kvNode;
-                } else if (kvNode.getHash() == null) return kvNode;
+        if (containsKey(key)) {
+            for (Node<K, V> kvNode : table) {
+                if (kvNode != null && kvNode.getHash() == hash && kvNode.getKey() == key) {
+                    return kvNode;
+                }
             }
         }
         return null;
     }
 
     @SuppressWarnings("unchecked")
-    public CustomHashMap() {
-        this.table = (Node<K, V>[]) new Node[size];
+    private void addBucket() {
+        capacity = capacity * 2;
+        table = Arrays.copyOf(table, capacity);
+    }
+
+    public boolean containsKey(K key) {
+        Integer hash;
+        if (key != null) hash = key.hashCode();
+        else hash = null;
+        if (table == null && size == 0) return false;
+        assert table != null;
+        for (Node<K, V> kvNode : table) {
+            if (kvNode != null) {
+                if (kvNode.getHash() == hash && key == kvNode.getKey()) return true;
+            }
+        }
+        return false;
     }
 
     public int size() {
         return size;
     }
 
-    public boolean isEmpty() {
-        return table.length == 0;
-    }
-
-    public V get(Object key) {
-        Node<K, V> node = getNode(key);
-        if (node != null) {
-            return node.getValue();
+    public V get(K key) {
+        if (containsKey(key)) {
+            Node<K, V> node = getNode(key);
+            if (node != null) {
+                return node.getValue();
+            }
         }
         return null;
     }
 
     @SuppressWarnings("unchecked")
     public V put(K key, V value) {
-        Node<K, V> node = getNode(key);
-        if (node == null) {
-            if (key != null) {
-                Integer hash = key.hashCode();
-                node = new Node<K, V>(hash, key, value);
-            } else {
-                node = new Node<K, V>(null, null, value);
-            }
-            Node<K, V>[] newElement = new Node[]{node};
-            Node<K, V>[] oldTable = table;
-            if (table[0] != null) size = size + 1;
-            table = (Node<K, V>[]) new Node[size];
-            System.arraycopy(oldTable, 0, table, 0, oldTable.length);
-            oldTable = null;
-            System.arraycopy(newElement, 0, table, table.length - 1, newElement.length);
-            newElement = null;
+
+        if (!containsKey(key)) {
+            Node<K, V> node;
+            if (key != null) node = new Node<>((Integer) key.hashCode(), key, value);
+            else node = new Node<>(null, null, value);
+            if (size == capacity) addBucket();
+            table[size] = node;
+            size++;
             return value;
         } else {
-            Integer hash;
-            if (key != null) {
-                hash = key.hashCode();
-                for (int i = 0; i < table.length; i++) {
-                    if (table[i].getHash() != null) {
-                        if (table[i].getHash().equals(hash)) {
-                            V oldValue = table[i].getValue();
-                            table[i].setValue(value);
-                            Node<K, V>[] oldTable = table;
-                            Node<K, V> newNode = table[i];
-                            Node<K, V>[] newElement = new Node[]{newNode};
-                            table = (Node<K, V>[]) new Node[size];
-                            if (i > 0) System.arraycopy(oldTable, 0, table, 0, i);
-                            System.arraycopy(newElement, 0, table, i, 1);
-                            if (i < table.length - 1)
-                                System.arraycopy(oldTable, i + 1, table, i + 1, oldTable.length - i);
-                            return oldValue;
+            Node<K, V> node = getNode(key);
+            assert node != null;
+            V oldV = node.getValue();
+            for (Node<K, V> kvNode : table) {
+                if (kvNode != null) {
+                    if (key != null) {
+                        if (kvNode.getHash().equals(key.hashCode()) && kvNode.getKey().equals(key)) {
+                            kvNode.setValue(value);
+                            return oldV;
                         }
-                    }
-                }
-
-            } else {
-                for (int i = 0; i < table.length; i++) {
-                    if (table[i].getHash() == null) {
-                        V oldValue = table[i].getValue();
-                        table[i].setValue(value);
-                        Node<K, V>[] oldTable = table;
-                        Node<K, V> newNode = table[i];
-                        Node<K, V>[] newElement = new Node[]{newNode};
-                        table = (Node<K, V>[]) new Node[size];
-                        if (i > 0) System.arraycopy(oldTable, 0, table, 0, i);
-                        System.arraycopy(newElement, 0, table, i, 1);
-                        if (i < table.length - 1) System.arraycopy(oldTable, i + 1, table, i + 1, oldTable.length - i);
-                        return oldValue;
+                    } else if (kvNode.getHash() == null && kvNode.getKey() == null) {
+                        kvNode.setValue(value);
+                        return oldV;
                     }
                 }
             }
@@ -135,47 +142,34 @@ public class CustomHashMap<K, V> {
     }
 
     @SuppressWarnings("unchecked")
-    public V remove(Object key) {
+    public V remove(K key) {
         Integer hash;
-        if (key != null) {
-            hash = key.hashCode();
-            for (int i = 0; i < table.length; i++) {
-                if (table[i] != null && table[i].getHash() != null) {
-                    if (table[i].getHash().equals(hash)) {
-                        size = size - 1;
-                        Node<K, V>[] oldTable = table;
-                        Node<K, V> removeNode = table[i];
-                        table = (Node<K, V>[]) new Node[size];
-                        System.arraycopy(oldTable, 0, table, 0, i);
-                        System.arraycopy(oldTable, i + 1, table, i, oldTable.length - i - 1);
-                        oldTable = null;
-                        return removeNode.getValue();
-                    }
-                }
-
-            }
-        } else {
-            hash = null;
-            for (int i = 0; i < table.length; i++) {
-                if (table[i].getHash() == null) {
-                    size = size - 1;
-                    Node<K, V>[] oldTable = table;
-                    Node<K, V> removeNode = table[i];
-                    table = (Node<K, V>[]) new Node[size];
-                    System.arraycopy(oldTable, 0, table, 0, i);
-                    System.arraycopy(oldTable, i + 1, table, i, oldTable.length - i - 1);
-                    oldTable = null;
-                    return removeNode.getValue();
-                }
+        if (key != null) hash = key.hashCode();
+        else hash = null;
+        if (!containsKey(key)) return null;
+        for (int i = 0; i < size; i++){
+            if (table[i] != null && table[i].getHash() == hash && table[i].getKey() == key){
+                V removeValue = table[i].getValue();
+                Node<K, V>[] oldTable = table;
+                table = (Node<K, V>[]) new Node[size];
+                if (i > 0) System.arraycopy(oldTable, 0, table, 0, i);
+                if (i < size - 1) System.arraycopy(oldTable, i + 1, table, i, size - i - 1);
+                size--;
+                oldTable = null;
+                return removeValue;
             }
         }
         return null;
     }
 
+
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        return o != null && getClass() == o.getClass();
+    @SuppressWarnings("unchecked")
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        CustomHashMap<K, V> customHashMap = (CustomHashMap<K, V>) obj;
+        return table == customHashMap.table;
     }
 
     @Override
